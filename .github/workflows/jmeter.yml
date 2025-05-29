@@ -31,16 +31,17 @@ jobs:
 
     - name: Run JMeter test and generate HTML report
       run: |
-        mkdir -p results/report
-        echo "Running APIs_Script.jmx..."
-        jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
-    - name: Stamp report with timestamp
+       mkdir -p results/report
+       jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
+
+    - name: Add timestamp file to force GitHub Pages update
       run: |
-       echo "<!-- Updated at $(date -u) -->" >> results/report/index.html
+       echo "Updated at $(date -u)" > results/report/.update-$(date +%s).txt
 
     - name: Deploy HTML report to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./results/report
-        publish_branch: gh-pages
+       github_token: ${{ secrets.GITHUB_TOKEN }}
+       publish_dir: ./results/report
+       publish_branch: gh-pages
+
