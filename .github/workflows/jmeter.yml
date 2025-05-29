@@ -1,0 +1,36 @@
+name: Run JMeter Tests
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  jmeter-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: Instalar JMeter
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jmeter
+
+    - name: Ejecutar prueba de JMeter
+      run: |
+        mkdir -p results/report
+        jmeter -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
+
+    - name: Subir reporte como artefacto
+      uses: actions/upload-artifact@v3
+      with:
+        name: jmeter-report
+        path: results/report
