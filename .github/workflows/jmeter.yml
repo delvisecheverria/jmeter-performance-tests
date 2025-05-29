@@ -30,7 +30,7 @@ jobs:
         jmeter -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
 
     - name: Subir reporte como artefacto
-      uses: actions/upload-artifact@v3.1.3
+      uses: actions/upload-artifact@v2
       with:
         name: jmeter-report
         path: results/report
