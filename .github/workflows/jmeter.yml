@@ -34,6 +34,9 @@ jobs:
         mkdir -p results/report
         echo "Running APIs_Script.jmx..."
         jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
+    - name: Stamp report with timestamp
+      run: |
+       echo "<!-- Updated at $(date -u) -->" >> results/report/index.html
 
     - name: Deploy HTML report to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
