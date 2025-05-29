@@ -1,3 +1,10 @@
+name: Run JMeter Tests
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
 jobs:
   jmeter-test:
     runs-on: ubuntu-latest
@@ -18,14 +25,16 @@ jobs:
         tar -xzf apache-jmeter-5.6.3.tgz
         export JMETER_HOME=$PWD/apache-jmeter-5.6.3
         echo "JMETER_HOME=$JMETER_HOME" >> $GITHUB_ENV
+        echo "$JMETER_HOME/bin" >> $GITHUB_PATH
 
     - name: Ejecutar prueba de JMeter y generar .jtl
       run: |
         mkdir -p results
         echo "Ejecutando APIs_Script.jmx..."
-        $JMETER_HOME/bin/jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl
+        jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl
 
     - name: Mostrar primeras 20 líneas del .jtl
       run: |
         echo "Mostrando resultado del archivo .jtl:"
         head -n 20 results/result.jtl
+
