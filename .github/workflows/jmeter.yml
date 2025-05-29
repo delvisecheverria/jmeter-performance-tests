@@ -38,3 +38,10 @@ jobs:
         echo "Mostrando resultado del archivo .jtl:"
         head -n 20 results/result.jtl
 
+    - name: Subir result.jtl como artefacto
+      uses: actions/upload-artifact@v2
+      with:
+        name: jmeter-raw-results
+        path: results/result.jtl
+
+    
