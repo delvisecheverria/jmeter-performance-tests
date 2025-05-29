@@ -28,7 +28,7 @@ jobs:
       run: |
         mkdir -p results/report
         echo "Ejecutando APIs_Script.jmx..."
-        jmeter -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
+        jmeter -n -t tests/APIs_Script.jmx -l results/result.jtl
 
     - name: Mostrar primeras 20 líneas del .jtl
       run: |
