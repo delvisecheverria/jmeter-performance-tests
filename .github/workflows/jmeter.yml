@@ -1,4 +1,4 @@
-name: Run JMeter Tests
+name: Run JMeter Tests and Publish Report
 
 on:
   push:
@@ -27,21 +27,14 @@ jobs:
         echo "JMETER_HOME=$JMETER_HOME" >> $GITHUB_ENV
         echo "$JMETER_HOME/bin" >> $GITHUB_PATH
 
-    - name: Ejecutar prueba de JMeter y generar .jtl
+    - name: Ejecutar prueba de JMeter y generar reporte
       run: |
-        mkdir -p results
-        echo "Ejecutando APIs_Script.jmx..."
-        jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl
+        mkdir -p results/report
+        jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
 
-    - name: Mostrar primeras 20 líneas del .jtl
-      run: |
-        echo "Mostrando resultado del archivo .jtl:"
-        head -n 20 results/result.jtl
-
-    - name: Subir result.jtl como artefacto
-      uses: actions/upload-artifact@v2.3.1
+    - name: Publicar HTML en gh-pages
+      uses: peaceiris/actions-gh-pages@v3
       with:
-        name: jmeter-raw-results
-        path: results/result.jtl
-
-    
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./results/report
+        publish_branch: gh-pages
