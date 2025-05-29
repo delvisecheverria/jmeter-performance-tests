@@ -1,8 +1,8 @@
 name: Run JMeter Tests and Publish Report
 
 on:
-  schedule:
-    - cron: '0 3 * * 6'  # Every Friday 10:00pm ET (converted to 2:00am UTC Saturday)---
+  #schedule:
+    #- cron: '0 3 * * 6'  # Every Friday 10:00pm ET (converted to 2:00am UTC Saturday)---
   workflow_dispatch:
   push:
     branches: [ main ]
