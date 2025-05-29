@@ -1,3 +1,14 @@
+- name: Subir reporte como artefacto
+  uses: actions/upload-artifact@v3
+  with:
+    name: jmeter-report
+    path: results/report
+- name: Subir reporte como artefacto
+  uses: actions/upload-artifact@v3.1.3
+  with:
+    name: jmeter-report
+    path: results/report
+
 name: Run JMeter Tests
 
 on:
