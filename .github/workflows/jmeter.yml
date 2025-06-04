@@ -26,7 +26,7 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
-    - name: Install tools
+    - name: Install tools and JMeter
       run: |
         sudo apt-get update
         sudo apt-get install -y libxml2-utils curl
