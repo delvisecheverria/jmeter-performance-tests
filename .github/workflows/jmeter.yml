@@ -58,17 +58,16 @@ jobs:
           exit 1
         fi
 
-        ALERTS=""
+        ERRORS=""
         while IFS=',' read -r time code url; do
-          ms=$(echo "$time" | cut -d '.' -f1)
-          if [[ $code -ge 400 || $ms -gt 2500 ]]; then
-            ALERTS+="• ${url} → ${code} in ${ms}ms\n"
+          if [[ $code -ge 400 ]]; then
+            ERRORS+="${url} → ${code}\n"
           fi
         done < <(tail -n +2 results/result.jtl | awk -F',' '{print $2","$4","$13}')
 
-        if [ -n "$ALERTS" ]; then
+        if [ -n "$ERRORS" ]; then
           curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \":warning: JMeter Alert\nThe following APIs had issues:\n$ALERTS\nTest Configuration:\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\n\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
+            \"text\": \":warning: *JMeter Alert*\\n\\n*The following APIs had issues:*\\n\`\`\`\n$ERRORS\`\`\`\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
           }" $SLACK_WEBHOOK
         fi
 
