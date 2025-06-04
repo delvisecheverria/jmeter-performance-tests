@@ -49,44 +49,26 @@ jobs:
         echo "rampup=$RAMPUP" >> $GITHUB_OUTPUT
         echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
-    - name: Map labels to API paths
-      id: label_map
-      run: |
-        declare -A label_to_path
-        while read -r line; do
-          label=$(echo "$line" | xmllint --xpath 'string(//@testname)' - 2>/dev/null)
-          path=$(echo "$line" | xmllint --xpath 'string(//stringProp[@name="HTTPSampler.path"])' - 2>/dev/null)
-          if [[ -n "$label" && -n "$path" ]]; then
-            echo "$label=$path" >> label_map.txt
-          fi
-        done < <(grep -oP '<HTTPSamplerProxy[^>]*>.*?</HTTPSamplerProxy>' tests/APIs_Script.jmx | tr -d '\n')
-
     - name: Analyze results and notify Slack
       env:
         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
       run: |
         if [ -z "$SLACK_WEBHOOK" ]; then
-          echo "❌ SLACK_WEBHOOK is not set. Please add it in your GitHub repository secrets."
+          echo "❌ SLACK_WEBHOOK is not set."
           exit 1
         fi
 
-        declare -A label_path
-        while IFS='=' read -r label path; do
-          label_path["$label"]="$path"
-        done < label_map.txt
-
         ERRORS=""
-        while IFS=',' read -r _ time label code _; do
+        while IFS=',' read -r _ time _ code _ _ _ _ _ _ _ _ _ url; do
           if [[ $code -ge 400 ]]; then
-            api_path="${label_path[$label]}"
-            api_path=${api_path:-$label}
-            ERRORS+="$api_path → $code\n"
+            path=$(echo "$url" | sed -E 's|https?://[^/]+||')
+            ERRORS+="$path → $code\n"
           fi
-        done < <(tail -n +2 results/result.jtl | awk -F',' '{print $1","$2","$3","$4","$5}')
+        done < <(tail -n +2 results/result.jtl)
 
         if [ -n "$ERRORS" ]; then
           curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \":warning: *JMeter Alert*\\n\\n*The following APIs had issues:*\\n\"\"\"\n$ERRORS\"\"\"\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+            \"text\": \"⚠️ *JMeter Alert*\\n\\n*The following APIs had issues:*\\n\"\"\"\n$ERRORS\"\"\"\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
           }" $SLACK_WEBHOOK
         fi
 
