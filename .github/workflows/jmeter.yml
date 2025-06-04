@@ -60,14 +60,18 @@ jobs:
 
         ERRORS=""
         SLOW=""
+        declare -A slow_seen
+
         while IFS=',' read -r _ elapsed label code message _ _ _ _ _ _ _ _ url; do
           path=$(echo "$url" | sed -E 's|https?://[^/]+||')
+          key="${label} (${path})"
           if [[ $code -ge 500 ]]; then
-            ERRORS+="${label} (${path}) → *${code}* (${message}) in ${elapsed}ms 🚨\n"
+            ERRORS+="$key → *${code}* (${message}) in ${elapsed}ms 🚨\n"
           elif [[ $code -ge 400 ]]; then
-            ERRORS+="${label} (${path}) → ${code} (${message}) in ${elapsed}ms ⚠️\n"
-          elif [[ $elapsed -gt 500 ]]; then
-            SLOW+="${label} (${path}) → ${elapsed}ms 🐌\n"
+            ERRORS+="$key → ${code} (${message}) in ${elapsed}ms ⚠️\n"
+          elif [[ $elapsed -gt 500 && -z "${slow_seen[$key]}" ]]; then
+            SLOW+="$key 🐌\n"
+            slow_seen[$key]=1
           fi
         done < <(tail -n +2 results/result.jtl | awk -F',' '{print $1","$2","$3","$4","$5","$6","$7","$8","$9","$10","$11","$12","$13}')
 
