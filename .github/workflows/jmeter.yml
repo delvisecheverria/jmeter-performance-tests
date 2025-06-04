@@ -59,16 +59,28 @@ jobs:
         fi
 
         ERRORS=""
-        while IFS=',' read -r _ time _ code _ _ _ _ _ _ _ _ _ url; do
-          if [[ $code -ge 400 ]]; then
-            path=$(echo "$url" | sed -E 's|https?://[^/]+||')
-            ERRORS+="$path → $code\n"
+        SLOW=""
+        while IFS=',' read -r _ elapsed label code message _; do
+          if [[ $code -ge 500 ]]; then
+            ERRORS+="• *${label}* → *${code}* (${message}) in ${elapsed}ms 🔥\n"
+          elif [[ $code -ge 400 ]]; then
+            ERRORS+="• ${label} → ${code} (${message}) in ${elapsed}ms ⚠️\n"
+          elif [[ $elapsed -gt 2500 ]]; then
+            SLOW+="• ${label} → ${elapsed}ms 🐢\n"
           fi
-        done < <(tail -n +2 results/result.jtl)
+        done < <(tail -n +2 results/result.jtl | awk -F',' '{print $1","$2","$3","$4","$5","$6}')
 
+        MSG=""
         if [ -n "$ERRORS" ]; then
+          MSG+="*❌ APIs with errors:*\n\n$ERRORS\n"
+        fi
+        if [ -n "$SLOW" ]; then
+          MSG+="*⏱️ Slow APIs (>2500ms):*\n\n$SLOW\n"
+        fi
+
+        if [ -n "$MSG" ]; then
           curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \"⚠️ *JMeter Alert*\\n\\n*The following APIs had issues:*\\n\"\"\"\n$ERRORS\"\"\"\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
+            \"text\": \"🚨 *JMeter Alert*\\n\\n$MSG\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
           }" $SLACK_WEBHOOK
         fi
 
