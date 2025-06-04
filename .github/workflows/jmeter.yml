@@ -39,6 +39,9 @@ jobs:
         mkdir -p results/report
         jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
 
+    - name: Install xmllint
+      run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
     - name: Extract test config from .jmx
       id: jmeter_config
       run: |
@@ -46,47 +49,4 @@ jobs:
         RAMPUP=$(xmllint --xpath 'string(//ThreadGroup/stringProp[@name="ThreadGroup.ramp_time"])' tests/APIs_Script.jmx)
         DURATION=$(xmllint --xpath 'string(//ThreadGroup/stringProp[@name="ThreadGroup.duration"])' tests/APIs_Script.jmx)
         echo "threads=$THREADS" >> $GITHUB_OUTPUT
-        echo "rampup=$RAMPUP" >> $GITHUB_OUTPUT
-        echo "duration=$DURATION" >> $GITHUB_OUTPUT
-
-    - name: Analyze JTL log for errors and slow APIs
-      id: analyze
-      run: |
-        ALERT=false
-        OUTPUT=""
-        while IFS=',' read -r ts elapsed label responseCode responseMessage threadName dataType success failureMessage bytes sentBytes grpThreads allThreads URL Latency IdleTime Connect;
-        do
-          # Check for slow APIs
-          if [[ "$elapsed" -gt 2500 ]]; then
-            OUTPUT+="• $label → ${elapsed}ms (slow)\n"
-            ALERT=true
-          fi
-          # Check for HTTP error codes 4xx or 5xx
-          if [[ "$responseCode" =~ ^4|^5 ]]; then
-            OUTPUT+="• $label → $responseCode ($responseMessage) in ${elapsed}ms\n"
-            ALERT=true
-          fi
-        done < <(tail -n +2 results/result.jtl)
-
-        echo -e "$OUTPUT" > results/alert_summary.txt
-        echo "alert=$ALERT" >> $GITHUB_OUTPUT
-
-    - name: Send Slack alert if issues found
-      if: steps.analyze.outputs.alert == 'true'
-      run: |
-        SUMMARY=$(cat results/alert_summary.txt | sed ':a;N;$!ba;s/\n/\\n/g')
-        curl -X POST -H 'Content-type: application/json' --data "{
-          \"text\": \":warning: *JMeter Alert*\nThe following APIs had issues:\n$SUMMARY\n\n*Test Configuration:*\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}s\n\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
-        }" $SLACK_WEBHOOK_URL
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-
-    - name: Deploy HTML report to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./results/report
-        publish_branch: gh-pages
-        force_orphan: true
-        keep_files: false
-        commit_message: "Deploy JMeter HTML report 🚀"
+        echo "
