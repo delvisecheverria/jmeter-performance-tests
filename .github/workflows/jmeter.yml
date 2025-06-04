@@ -39,19 +39,19 @@ jobs:
         mkdir -p results/report
         jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
 
-    - name: Analyze JTL log for issues
+    - name: Analyze JTL log for errors and slow APIs
       id: analyze
       run: |
         ALERT=false
         OUTPUT=""
         while IFS=',' read -r ts elapsed label responseCode responseMessage threadName dataType success failureMessage bytes sentBytes grpThreads allThreads URL Latency IdleTime Connect;
         do
-          if [[ "$elapsed" -gt 3000 ]]; then
+          if [[ "$elapsed" -gt 2500 ]]; then
             OUTPUT+="• $label → ${elapsed}ms (slow)\n"
             ALERT=true
           fi
           if [[ "$responseCode" =~ ^4|^5 ]]; then
-            OUTPUT+="• $label → $responseCode ($responseMessage)\n"
+            OUTPUT+="• $label → $responseCode ($responseMessage) in ${elapsed}ms\n"
             ALERT=true
           fi
         done < <(tail -n +2 results/result.jtl)
@@ -64,7 +64,7 @@ jobs:
       run: |
         SUMMARY=$(cat results/alert_summary.txt | sed ':a;N;$!ba;s/\n/\\n/g')
         curl -X POST -H 'Content-type: application/json' --data "{
-          \"text\": \":warning: *JMeter Alert*\nSome APIs had issues:\n$SUMMARY\n\n:mag: View report: https://<your-username>.github.io/<your-repo>\"
+          \"text\": \":warning: *JMeter Alert*\nThe following APIs had issues:\n$SUMMARY\n\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
         }" $SLACK_WEBHOOK_URL
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
