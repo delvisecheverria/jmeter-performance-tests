@@ -51,4 +51,46 @@ jobs:
 
     - name: Analyze results and notify Slack
       env:
-        SLACK
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      run: |
+        if [ -z "$SLACK_WEBHOOK" ]; then
+          echo "❌ SLACK_WEBHOOK is not set."
+          exit 1
+        fi
+
+        ERRORS=""
+        SLOW=""
+        while IFS=',' read -r _ elapsed label code message _ _ _ _ _ _ _ _ url; do
+          path=$(echo "$url" | sed -E 's|https?://[^/]+||')
+          if [[ $code -ge 500 ]]; then
+            ERRORS+="${label} (${path}) → *${code}* (${message}) in ${elapsed}ms 🚨\n"
+          elif [[ $code -ge 400 ]]; then
+            ERRORS+="${label} (${path}) → ${code} (${message}) in ${elapsed}ms ⚠️\n"
+          elif [[ $elapsed -gt 500 ]]; then
+            SLOW+="${label} (${path}) → ${elapsed}ms 🐌\n"
+          fi
+        done < <(tail -n +2 results/result.jtl | awk -F',' '{print $1","$2","$3","$4","$5","$6","$7","$8","$9","$10","$11","$12","$13}')
+
+        MSG=""
+        if [ -n "$ERRORS" ]; then
+          MSG+="*❌ The following APIs had issues:*\n\n\`\`\`\n$ERRORS\n\`\`\`\n"
+        fi
+        if [ -n "$SLOW" ]; then
+          MSG+="*⏱️ Slow APIs (>500ms):*\n\n\`\`\`\n$SLOW\n\`\`\`\n"
+        fi
+
+        if [ -n "$MSG" ]; then
+          curl -X POST -H 'Content-type: application/json' --data "{
+            \"text\": \"🚨 *JMeter Alert*\\n\\n$MSG\\n*Test Configuration:*\\n• Users: ${{ steps.jmeter_config.outputs.threads }}\\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\\n\\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
+          }" $SLACK_WEBHOOK
+        fi
+
+    - name: Deploy HTML report to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./results/report
+        publish_branch: gh-pages
+        force_orphan: true
+        keep_files: false
+        commit_message: "Deploy JMeter HTML report 🚀"
