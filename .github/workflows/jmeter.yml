@@ -26,61 +26,46 @@ jobs:
         distribution: 'temurin'
         java-version: '11'
 
-    - name: Install JMeter manually
+    - name: Install tools
       run: |
+        sudo apt-get update
+        sudo apt-get install -y libxml2-utils curl
         wget https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.6.3.tgz
         tar -xzf apache-jmeter-5.6.3.tgz
-        export JMETER_HOME=$PWD/apache-jmeter-5.6.3
-        echo "JMETER_HOME=$JMETER_HOME" >> $GITHUB_ENV
-        echo "$JMETER_HOME/bin" >> $GITHUB_PATH
+        echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
 
     - name: Run JMeter test and generate HTML report
       run: |
         mkdir -p results/report
         jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
 
-    - name: Install xmllint
-      run: sudo apt-get update && sudo apt-get install -y libxml2-utils
-
     - name: Extract test config from .jmx
       id: jmeter_config
       run: |
-        THREADS=$(xmllint --xpath "string(//ThreadGroup/stringProp[@name='ThreadGroup.num_threads'])" tests/APIs_Script.jmx)
-        RAMPUP=$(xmllint --xpath "string(//ThreadGroup/stringProp[@name='ThreadGroup.ramp_time'])" tests/APIs_Script.jmx)
-        DURATION=$(xmllint --xpath "string(//ThreadGroup/stringProp[@name='ThreadGroup.duration'])" tests/APIs_Script.jmx)
+        THREADS=$(xmllint --xpath "string(//ThreadGroup/intProp[@name='ThreadGroup.num_threads'])" tests/APIs_Script.jmx 2>/dev/null || echo "Not found")
+        RAMPUP=$(xmllint --xpath "string(//ThreadGroup/intProp[@name='ThreadGroup.ramp_time'])" tests/APIs_Script.jmx 2>/dev/null || echo "Not found")
+        DURATION=$(xmllint --xpath "string(//ThreadGroup/stringProp[@name='ThreadGroup.duration'])" tests/APIs_Script.jmx 2>/dev/null || echo "Not specified")
         echo "threads=$THREADS" >> $GITHUB_OUTPUT
         echo "rampup=$RAMPUP" >> $GITHUB_OUTPUT
         echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
-    - name: Analyze JTL log for errors and slow APIs
-      id: analyze
-      run: |
-        ALERT=false
-        OUTPUT=""
-        while IFS=',' read -r ts elapsed label responseCode responseMessage threadName dataType success failureMessage bytes sentBytes grpThreads allThreads URL Latency IdleTime Connect;
-        do
-          if [[ "$elapsed" -gt 2500 ]]; then
-            OUTPUT+="• $label → ${elapsed}ms (slow)\n"
-            ALERT=true
-          fi
-          if [[ "$responseCode" =~ ^4|^5 ]]; then
-            OUTPUT+="• $label → $responseCode ($responseMessage) in ${elapsed}ms\n"
-            ALERT=true
-          fi
-        done < <(tail -n +2 results/result.jtl)
-
-        echo -e "$OUTPUT" > results/alert_summary.txt
-        echo "alert=$ALERT" >> $GITHUB_OUTPUT
-
-    - name: Send Slack alert if issues found
-      if: steps.analyze.outputs.alert == 'true'
-      run: |
-        SUMMARY=$(cat results/alert_summary.txt | sed ':a;N;$!ba;s/\n/\\n/g')
-        curl -X POST -H 'Content-type: application/json' --data "{
-          \"text\": \":warning: *JMeter Alert*\nThe following APIs had issues:\n$SUMMARY\n\n*Test Configuration:*\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}s\n\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
-        }" $SLACK_WEBHOOK_URL
+    - name: Analyze results and notify Slack
       env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      run: |
+        ALERTS=""
+        while IFS=',' read -r time code url; do
+          ms=$(echo "$time" | cut -d '.' -f1)
+          if [[ $code -ge 400 || $ms -gt 2500 ]]; then
+            ALERTS+="• ${url} → ${code} in ${ms}ms\n"
+          fi
+        done < <(tail -n +2 results/result.jtl | awk -F',' '{print $2","$4","$13}')
+
+        if [ -n "$ALERTS" ]; then
+          curl -X POST -H 'Content-type: application/json' --data "{
+            \"text\": \":warning: JMeter Alert\nThe following APIs had issues:\n$ALERTS\nTest Configuration:\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\n\n:mag: View report: https://delvisecheverria.github.io/jmeter-performance-tests/\"
+          }" $SLACK_WEBHOOK_URL
+        fi
 
     - name: Deploy HTML report to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
