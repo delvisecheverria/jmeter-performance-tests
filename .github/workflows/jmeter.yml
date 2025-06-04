@@ -51,8 +51,13 @@ jobs:
 
     - name: Analyze results and notify Slack
       env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
       run: |
+        if [ -z "$SLACK_WEBHOOK" ]; then
+          echo "❌ SLACK_WEBHOOK is not set. Please add it in your GitHub repository secrets."
+          exit 1
+        fi
+
         ALERTS=""
         while IFS=',' read -r time code url; do
           ms=$(echo "$time" | cut -d '.' -f1)
@@ -63,8 +68,8 @@ jobs:
 
         if [ -n "$ALERTS" ]; then
           curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \":warning: JMeter Alert\nThe following APIs had issues:\n$ALERTS\nTest Configuration:\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\n\n:mag: View report: https://delvisecheverria.github.io/jmeter-performance-tests/\"
-          }" $SLACK_WEBHOOK_URL
+            \"text\": \":warning: JMeter Alert\nThe following APIs had issues:\n$ALERTS\nTest Configuration:\n• Users: ${{ steps.jmeter_config.outputs.threads }}\n• Ramp-up: ${{ steps.jmeter_config.outputs.rampup }}s\n• Duration: ${{ steps.jmeter_config.outputs.duration }}\n\n:mag: View report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/\"
+          }" $SLACK_WEBHOOK
         fi
 
     - name: Deploy HTML report to GitHub Pages
