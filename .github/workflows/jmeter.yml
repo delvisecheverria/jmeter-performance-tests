@@ -66,9 +66,9 @@ jobs:
           path=$(echo "$url" | sed -E 's|https?://[^/]+||')
           key="${label} (${path})"
           if [[ $code -ge 500 ]]; then
-            ERRORS+="$key → *${code}* (${message}) in ${elapsed}ms 🚨\n"
+            ERRORS+="$key → *${code}* (${message}) 🚨\n"
           elif [[ $code -ge 400 ]]; then
-            ERRORS+="$key → ${code} (${message}) in ${elapsed}ms ⚠️\n"
+            ERRORS+="$key → ${code} (${message}) ⚠️\n"
           elif [[ $elapsed -gt 500 && -z "${slow_seen[$key]}" ]]; then
             SLOW+="$key 🐌\n"
             slow_seen[$key]=1
