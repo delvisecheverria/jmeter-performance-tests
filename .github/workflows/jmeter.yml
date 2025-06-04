@@ -16,6 +16,9 @@ jobs:
   jmeter-test:
     runs-on: ubuntu-latest
 
+    env:
+      JMETER_HOME: ${{ github.workspace }}/apache-jmeter-5.6.3
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -30,14 +33,34 @@ jobs:
       run: |
         wget https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.6.3.tgz
         tar -xzf apache-jmeter-5.6.3.tgz
-        export JMETER_HOME=$PWD/apache-jmeter-5.6.3
-        echo "JMETER_HOME=$JMETER_HOME" >> $GITHUB_ENV
-        echo "$JMETER_HOME/bin" >> $GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
 
     - name: Run JMeter test and generate HTML report
       run: |
         mkdir -p results/report
         jmeter -Jxstream.disable=true -n -t tests/APIs_Script.jmx -l results/result.jtl -e -o results/report
+
+    - name: Analyze JTL log for issues
+      id: analyze
+      run: |
+        ALERT=false
+        while IFS=',' read -r ts elapsed label responseCode responseMessage threadName dataType success failureMessage bytes sentBytes grpThreads allThreads URL Latency IdleTime Connect;
+        do
+          if [[ "$elapsed" -gt 3000 ]]; then ALERT=true; fi
+          if [[ "$responseCode" =~ ^4|^5 ]]; then ALERT=true; fi
+        done < <(tail -n +2 results/result.jtl) # skip header
+        echo "alert=$ALERT" >> $GITHUB_OUTPUT
+
+    - name: Send Slack alert if issues found
+      if: steps.analyze.outputs.alert == 'true'
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        payload: |
+          {
+            "text": ":warning: *JMeter Alert*\nOne or more APIs had >3000ms response time or returned 4xx/5xx errors.\n🔍 View report: https://<your-username>.github.io/<your-repo>"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
 
     - name: Deploy HTML report to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
